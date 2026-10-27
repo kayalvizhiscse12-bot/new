@@ -1,0 +1,295 @@
+FILE_PATH = "./data/" 
+
+COUNTRIES = ["US", "CA", "GB"] 
+
+VIEW_THRESHOLD = 1_000_000 
+
+LIKE_RATIO_THRESHOLD = 0.8
+
+
+
+
+
+start_time = datetime.now().
+
+strftime("%Y-%m-%d %H:%M:%S")
+
+print(f"=== RUN STARTED AT: {start_time} ===") 
+
+print(f"Loading countries: {', '.join(COUNTRIES)}") 
+
+print(f"Thresholds: Views={VIEW_THRESHOLD:,}, Like Ratio={LIKE_RATIO_THRESHOLD}\n")
+
+
+
+
+
+
+
+
+
+mock_csv_data = [ {"video_id": "v1", "trending_date": "17.01.12", "publish_time": "2017-11-30T10:00:00.000Z", "title": "AMAZING viral video!!", "channel_title": "CoolChannel", "category_id": 1, "views": "1500000", "likes": "100000", "dislikes": "5000", "comments_disabled": "False", "ratings_disabled": "False", "video_error_or_removed": "False"}, 
+
+{"video_id": "v2", "trending_date": "18.15.03", "publish_time": "2018-03-10T12:00:00.000Z", "title": "Steady cooking vlog", "channel_title": "Tasty Food", "category_id": 2, "views": "200000", "likes": "15000", "dislikes": "200", "comments_disabled": "False", "ratings_disabled": "False", "video_error_or_removed": "False"}, 
+
+{"video_id": "v1", "trending_date": "17.01.12", "publish_time": "2017-11-30T10:00:00.000Z", "title": "AMAZING viral video!!", "channel_title": "CoolChannel", "category_id": 1, "views": "1600000", "likes": "110000", "dislikes": "6000", "comments_disabled": "False", "ratings_disabled": "False", "video_error_or_removed": "False"},
+
+ {"video_id": "v3", "trending_date": "BAD_DATE", "publish_time": "BAD_TIME", "title": "Broken Row", "channel_title": "Errors", "category_id": 1, "views": "abc", "likes": "0", "dislikes": "0", "comments_disabled": "False", "ratings_disabled": "False", "video_error_or_removed": "False"} ]
+
+
+
+
+
+ def load_country(path, country, max_rows=None):  
+
+	print("Loaded { len(mock_csv_data)} records for {country}") 
+
+
+
+records = [] for row in mock_csv_data[:max_rows]: 
+
+	new_row = row.copy() 
+
+	new_row["country"] = country  
+
+	records.append(new_row) 
+
+	
+
+return records 
+
+
+
+category_names = {1: "Entertainment", 2: "How-to & Style"} 
+
+
+
+raw_records = []
+
+
+
+	 for c in COUNTRIES: 
+
+		raw_records.extend(load_country(FILE_PATH, c, max_rows=10)) 
+
+
+
+
+
+def clean_int(value, field_name, failures_dict): 
+
+
+
+try: 
+
+	return int(float(str(value).strip() or 0)) 
+
+except (Value Error, Type Error): 
+
+	failures_dict[field_name] += 1 
+
+return None
+
+
+
+
+
+cleaned_records = [] 
+
+tuple_history_records = [] 
+
+
+
+parsing_failures = {"numeric": 0, "boolean": 0, "trending_date": 0, "publish_time": 0} 
+
+
+
+for rec in raw_records:
+
+	views = clean_int(rec.get("views"), "numeric", parsing_failures) 
+
+    likes = clean_int(rec.get("likes"), "numeric", parsing_failures) 
+
+    dislikes = clean_int(rec.get("dislikes"), "numeric", parsing_failures)   
+
+
+
+if views is None or likes is None or dislikes is None:
+
+
+
+contin
+
+
+
+ try: 
+
+	comments_disabled = str(rec.get("comments_disabled")).strip().lower() == "true" 
+
+	ratings_disabled = str(rec.get("ratings_disabled")).strip().lower() == "true" 
+
+	video_error_or_removed = str(rec.get("video_error_or_removed")).strip().lower() == "true"
+
+
+
+ except Exception: 
+
+	parsing_failures["boolean"] += 1 
+
+	continue 
+
+
+
+  try: 
+
+	date_str = str(rec.get("trending_date")) 
+
+	trending_date = datetime.strptime(date_str, "%y.%d.%m").date()
+
+ except Exception: 
+
+	parsing_failures["trending_date"] += 1 
+
+	continue
+
+
+
+
+
+clean_rec = {
+
+ "video_id": rec["video_id"], "title": rec["title"], "channel_title": rec["channel_title"], "category_id": int(rec["category_id"]), "country": rec["country"], "views": views, "likes": likes, "dislikes": dislikes, "comments_disabled": comments_disabled, "ratings_disabled": ratings_disabled, "video_error_or_removed": video_error_or_removed, "trending_date": trending_date, "publish_time": publish_time } 
+
+
+
+ cleaned_records.append(clean_rec)
+
+
+
+  tuple_history_records.append((rec["video_id"], trending_date, views, likes)) 
+
+
+
+print(f"\n Parsing Failures Count: {parsing_failures}") 
+
+
+
+us_videos = {r["video_id"] for r in cleaned_records if r["country"] == "US"} 
+
+ca_videos = {r["video_id"] for r in cleaned_records if r["country"] == "CA"} 
+
+shared_trending = us_videos.intersection(ca_videos) 
+
+unique_to_us = us_videos.difference(ca_videos) 
+
+channel_counts = {} 
+
+for r in cleaned_records: 
+
+	channel_counts[r["channel_title"]] = channel_counts.get(r["channel_title"], 0) + 1 
+
+	 top_channels = sorted(channel_counts.items(), 
+
+	key=lambda x: x[1], reverse=True)
+
+ nested_summary = {} 
+
+for r in cleaned_records: 
+
+	c = r["country"] 
+
+	cat_lbl = category_names.get(r["category_id"], "Other") 
+
+	nested_summary.setdefault(c, {}).setdefault(cat_lbl, 0) 
+
+	nested_summary[c][cat_lbl] += 1 
+
+print(f"\n Unique Video Count in Shared Pool: {len(shared_trending)}") 
+
+print(f" Slice of Nested Category Summary for US: {nested_summary.get('US', {})}") 
+
+
+
+
+
+OUTSIDE_VARIABLE ="I  AM GLOBAL"
+
+def scope_demo(): 
+
+	inside_variable = "I am local" 
+
+print(f"Inside function can see global variable: '{OUTSIDE_VARIABLE}'") 
+
+return inside_variable scope_demo() 
+
+try: 
+
+print(inside_variable) 
+
+except NameError: 
+
+print(" Cannot access 'inside_variable' from outside the function! (Local Scope Isolation works)") 
+
+
+
+def title_features(title): 
+
+ words = title.split() 
+
+uppercase_words = 0 
+
+punctuation_count = 0 
+
+
+
+for w in words: 
+
+	if w. isupper(): 
+
+uppercase_words += 1 
+
+
+
+for i in range( len(title)): 
+
+	if title[i] in [!", "?"]: 
+
+		punctuation_count += 1 
+
+return {"words": len (words), "caps": uppercase_words, "marks": punctuation_count}
+
+
+
+
+
+print("\n Running While Loop scan target search:") 
+
+idx = 0 
+
+while idx < len(cleaned_records): 
+
+	rec = cleaned_records[idx] 
+
+if rec["views"] < VIEW_THRESHOLD: 
+
+	idx += 1 
+
+continue 
+
+Pint(f"Found entry matching view target threshold: {rec['title']}") 
+
+print(f" Text metrics: {title_features(rec['title'])}") \
+
+	break 
+
+idx += 1
+
+
+
+def classify_video(record): 
+
+
+
+	v = record["views"] 
+
+	l = record["likes"]

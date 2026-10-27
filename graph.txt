@@ -1,0 +1,71 @@
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+import plotly.express as px
+import plotly.graph_objects as go
+
+df = pd.read_csv("part3_visualization_eda/data/categories.csv")
+print(df.head())
+
+plt.figure(fig size=(8, 4))
+df_analysis['category_name'].value_counts().plot(kind='bar', color='skyblue')
+plt.title('Trending Records Count per Category')
+plt.xlabel('Category Name')
+plt.ylabel('Number of Records')
+plt.xticks(rotation=45)
+plt.tight_layout()
+plt.show()
+
+plt.figure(figsize=(8, 4))
+plt.hist(np.log10(df_analysis['views'] + 1), bins=30, color='salmon', edgecolor='black')
+plt.title('Distribution of Log-Scaled Views')
+plt.xlabel('Log10(Views)')
+plt.ylabel('Frequency')
+plt.tight_layout()
+plt.show()
+
+plt.figure(figsize=(8, 4))
+plt.scatter(df_analysis['views'], df_analysis['likes'], alpha=0.5, color='green')
+plt.title('Scatter Plot: Views vs. Likes')
+plt.xlabel('Views')
+plt.ylabel('Likes')
+plt.tight_layout()
+plt.show()
+
+plt.figure(figsize=(8, 4))
+df_analysis.groupby('days_to_trend').size().plot(kind='line', marker='o', color='purple')
+plt.title('Number of Records by Days to Reach Trending List')
+plt.xlabel('Days Elapsed Before Trending')
+plt.ylabel('Count')
+plt.tight_layout()
+plt.show()
+
+plt.figure(figsize=(8, 4))
+sns.boxplot(data=df_analysis, x='category_name', y='views', palette='Set2')
+plt.yscale('log')
+plt.title('Box Plot of Log-Scale Views by Video Category')
+plt.xlabel('Category')
+plt.ylabel('Views (Log Scale)')
+plt.xticks(rotation=30)
+plt.tight_layout()
+plt.show()
+
+fig1 = px.scatter(
+    df_analysis.sample(n=min(len(df_analysis), 1000)), 
+    x='views', y='likes', color='category_name',
+    hover_data=['video_id'], title='Interactive Comparison: Views vs. Likes'
+)
+fig1.show()
+
+
+country_avg = df_analysis.groupby(['country', 'category_name'])['views'].mean().reset_index()
+fig2 = px.bar(
+    country_avg, x='category_name', y='views', color='country',
+    barmode='group', title='Average Views per Category across Countries'
+)
+fig2.show()
+
+
+corr_matrix = df_analysis[['views', 'likes', 'dislikes', 'comment_count', 'days_to_trend']].corr()
+print(corr_matrix)

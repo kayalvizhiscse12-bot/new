@@ -1,0 +1,123 @@
+CREATE DATABASE IF NOT EXISTS youtube_trending_db;
+USE youtube_trending_db;
+
+-- 1. Create Lookup Table: Categories
+DROP TABLE IF EXISTS categories;
+CREATE TABLE categories (
+    category_id INT NOT NULL,
+    category_name VARCHAR(100) NOT NULL,
+    PRIMARY KEY (category_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 2. Create Entity Table: Videos
+DROP TABLE IF EXISTS videos;
+CREATE TABLE videos (
+    video_id VARCHAR(50) NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    channel_title VARCHAR(255) NOT NULL,
+    category_id INT NOT NULL,
+    publish_time DATETIME NOT NULL,
+    PRIMARY KEY (video_id),
+    CONSTRAINT fk_videos_categories FOREIGN KEY (category_id) 
+        REFERENCES categories (category_id) ON DELETE RESTRICT ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 3. Create Fact/Transaction Table: Trending Records
+DROP TABLE IF EXISTS trending_records;
+CREATE TABLE trending_records (
+    record_id INT NOT NULL AUTO_INCREMENT,
+    video_id VARCHAR(50) NOT NULL,
+    country CHAR(2) NOT NULL,
+    trending_date DATE NOT NULL,
+    views INT NOT NULL,
+    likes INT NOT NULL,
+    dislikes INT NOT NULL,
+    comment_count INT NOT NULL,
+    PRIMARY KEY (record_id),
+    CONSTRAINT fk_records_videos FOREIGN KEY (video_id) 
+        REFERENCES videos (video_id) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+
+SELECT COUNT(*) AS total_categories FROM categories;
+SELECT COUNT(*) AS total_videos FROM videos;
+SELECT COUNT(*) AS total_trending_records FROM trending_records;
+
+
+SELECT 
+    record_id AS RecordID, 
+    video_id AS VideoID, 
+    views AS TotalViews, 
+    likes AS TotalLikes
+FROM trending_records
+WHERE country = 'US'
+ORDER BY views DESC
+LIMIT 5;
+
+
+SELECT DISTINCT 
+    country AS TrackedCountry, 
+    category_id AS ActiveCategoryID
+FROM trending_records tr
+INNER JOIN videos v ON tr.video_id = v.video_id
+ORDER BY country ASC, category_id ASC;
+
+
+SELECT 
+    v.category_id AS CategoryID, 
+    c.category_name AS CategoryName,
+    ROUND(AVG(tr.views), 2) AS AverageViews
+FROM trending_records tr
+INNER JOIN videos v ON tr.video_id = v.video_id
+INNER JOIN categories c ON v.category_id = c.category_id
+GROUP BY v.category_id, c.category_name
+HAVING AverageViews > 1000000
+ORDER BY AverageViews DESC;
+
+
+SELECT 
+    channel_title AS ProductionChannel, 
+    COUNT(DISTINCT video_id) AS UniqueTrendingVideos
+FROM videos
+GROUP BY channel_title
+HAVING UniqueTrendingVideos >= 5
+ORDER BY UniqueTrendingVideos DESC;
+
+
+SELECT 
+    tr.record_id, 
+    v.title, 
+    c.category_name, 
+    tr.country, 
+    tr.views
+FROM trending_records tr
+INNER JOIN videos v ON tr.video_id = v.video_id
+INNER JOIN categories c ON v.category_id = c.category_id
+ORDER BY tr.views DESC
+LIMIT 3;
+
+INSERT INTO categories (category_id, category_name) VALUES (99, 'Dormant Category');
+
+SELECT 
+    c.category_id, 
+    c.category_name, 
+    v.video_id
+FROM categories c
+LEFT JOIN videos v ON c.category_id = v.category_id
+WHERE v.video_id IS NULL;
+
+
+SELECT 
+    v.video_id, 
+    v.title, 
+    tr.record_id, 
+    tr.country
+FROM trending_records tr
+RIGHT JOIN videos v ON tr.video_id = v.video_id
+WHERE tr.record_id IS NULL;
+
+EXCEL
+
+=COUNTIF('Trending Records'!$C$2:$C$278, "US")
+=AVERAGE('Trending Records'!$E$2:$E$278)
+=E2>=PERCENTILE($E$2:$E$278, 0.90)

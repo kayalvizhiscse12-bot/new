@@ -1,0 +1,178 @@
+import numpy as np
+import pandas as pd
+import warnings
+warnings.filterwarnings('ignore')
+
+print("=== 1. LOADING & DATA INSPECTION ===")
+
+#dataset
+mock_df_data = {
+    "video_id": ["v1", "v2", "v1", "v4", "v5", "v6", "v7", "v8", "v9", "v10"],
+    "trending_date": ["17.01.12", "18.15.03", "17.01.12", "17.02.12", "17.03.12", "17.04.12", "17.05.12", "17.06.12", "17.07.12", "17.08.12"],
+    "publish_time": ["2017-11-30T10:00:00.000Z", "2018-03-10T12:00:00.000Z", "2017-11-30T10:00:00.000Z", "2017-12-01T08:00:00.000Z", "2017-12-02T09:00:00.000Z", "2017-12-03T10:00:00.000Z", "2017-12-04T11:00:00.000Z", "2017-12-05T12:00:00.000Z", "2017-12-06T13:00:00.000Z", "2017-12-07T14:00:00.000Z"],
+    "title": ["Viral Video", "Gaming Guide", "Viral Video", "Music Hits", "Vlog 1", "Vlog 2", "Tech Review", "Comedy Skit", "News Update", "ASMR Sleep"],
+    "channel_title": ["CoolChannel", "GamerX", "CoolChannel", "MusicCo", "VloggerA", "VloggerB", "TechZone", "Laughs", "WorldNews", "RelaxZone"],
+    "category_id":,
+    "views":,
+    "likes":,
+    "dislikes":,
+    "comment_count":,
+    "description": ["Fun times", "Watch me play", "Fun times", None, "My day", "Another day", None, "Try not to laugh", "Daily digest", "Relax"]
+}
+
+# Emulate reading per-country files
+df_us = pd.DataFrame(mock_df_data)
+df_us['country'] = 'US'
+
+df_ca = pd.DataFrame(mock_df_data).copy()
+df_ca['country'] = 'CA'
+df_ca.loc[0, 'views'] = 1400000 # minor variation for difference
+
+# Combine DataFrames using concat()
+df = pd.concat([df_us, df_ca], ignore_index=True)
+
+print(f"Combined Shape: {df.shape}")
+print("\n--- df.info() ---")
+df.info()
+print("\n--- df.describe() ---\n", df.describe())
+
+df['trending_date'] = pd.to_datetime(df['trending_date'], format='%y.%d.%m', errors='coerce')
+df['publish_time'] = pd.to_datetime(df['publish_time'], errors='coerce')
+
+print("\n=== 2. MISSING VALUES & DUPLICATES ===")
+
+missing_counts = df.isna().sum()
+missing_pct = (df.isna().mean() * 100).round(2)
+missing_report = pd.DataFrame({'Counts': missing_counts, 'Percentage (%)': missing_pct})
+print("Missing values report:\n", missing_report[missing_report['Counts'] > 0])
+
+df['description'].fillna('No Description Provided', inplace=True)
+
+df.dropna(subset=['trending_date', 'publish_time'], inplace=True)
+
+initial_rows = len(df)
+df.drop_duplicates(subset=['video_id', 'trending_date', 'country'], keep='first', inplace=True)
+print(f"Removed {initial_rows - len(df)} duplicate records based on ['video_id', 'trending_date', 'country'].")
+
+print("\n=== 3. JOINING CATEGORY NAMES ===")
+mock_categories = pd.DataFrame({
+    'category_id':,
+    'category_name': ['Entertainment', 'Gaming', 'Music']
+})
+
+records_before = len(df)
+df = df.merge(mock_categories, on='category_id', how='left')
+assert len(df) == records_before, "Data loss occurred during category merge!"
+print("Left merge completed successfully. Row counts perfectly preserved.")
+
+print("\n=== 4. NUMPY ARRAYS & ENGAGEMENT MATRIX ===")
+
+
+views = df['views'].to_numpy(dtype=np.float64)
+likes = df['likes'].to_numpy(dtype=np.float64)
+dislikes = df['dislikes'].to_numpy(dtype=np.float64)
+comments = df['comment_count'].to_numpy(dtype=np.float64)
+
+print(f"Views Array Shape: {views.shape}, Dtype: {views.dtype}")
+
+
+sorted_indices = np.argsort(views)[::-1]
+print(f"10 Largest View Counts: {views[sorted_indices[:10]]}")
+print(f"Every 2nd record slice sample: {views[::2]}") 
+
+
+like_ratio = np.divide(likes, (likes + dislikes), out=np.zeros_like(likes), where=(likes + dislikes) != 0)
+comment_rate = np.divide(comments, views, out=np.zeros_like(comments), where=views != 0)
+
+# Min-Max Scalers
+def min_max_scale(arr):
+    rng = arr.max() - arr.min()
+    return np.divide((arr - arr.min()), rng, out=np.zeros_like(arr), where=rng != 0)
+
+norm_views = min_max_scale(views)
+norm_likes = min_max_scale(likes)
+norm_comments = min_max_scale(comments)
+
+
+
+engagement_score = (norm_views * 0.2) + (norm_likes * 0.4) + (norm_comments * 0.4)
+df['engagement_score'] = engagement_score
+
+log_views = np.log1p(views)
+
+top_10_percentile = np.percentile(engagement_score, 90)
+top_engagement_mask = engagement_score >= top_10_percentile
+print(f"Flagged {np.sum(top_engagement_mask)} records in the top 10% engagement tier.")
+
+print("\n=== 5. FILTERING & SEARCH QUERY EXECUTIONS ===")
+
+filtered_a = df[(df['views'] >= 1_000_000) & (df['likes'] > 50_000)]
+print(f"Records with 1M+ views and 50k+ likes: {len(filtered_a)}")
+
+top_20 = df.sort_values(by='engagement_score', ascending=False).head(20)
+print("Top records ranked via score extraction:\n", top_20[['title', 'views', 'engagement_score']])
+
+median_views = df['views'].median()
+filtered_c = df[df['category_name'].isin(['Music', 'Gaming']) & (df['views'] > median_views)]
+print(f"Music/Gaming videos exceeding median views ({median_views}): {len(filtered_c)}")
+
+# AGREE
+print("\n=== 6. AGGREGATIONS & TIMELINE METRICS ===")
+
+# Groupby Aggregations
+grouped = df.groupby(['category_name', 'country']).agg(
+    record_count=('video_id', 'count'),
+    avg_views=('views', 'mean'),
+    avg_likes=('likes', 'mean'),
+    avg_engagement=('engagement_score', 'mean')
+)
+print("Aggregated breakdown:\n", grouped.head())
+
+# Time to Trend Analysis
+df['days_to_trend'] = (df['trending_date'] - df['publish_time'].dt.normalize()).dt.days
+print("\nDays to Trend statistics:\n", df['days_to_trend'].describe())
+
+# Publishing Day performance tracking
+df['publish_day'] = df['publish_time'].dt.day_name()
+best_day = df.groupby('publish_day')['views'].mean().idxmax()
+print(f"Day with highest average view velocity: {best_day}")
+
+# Trending Lifespan analysis
+lifespan = df.groupby(['video_id', 'country'])['trending_date'].nunique().reset_index(name='lifespan')
+top_10_lifespan = lifespan.sort_values(by='lifespan', ascending=False).head(10)
+print("\nTop 10 Longest Lasting Trending Videos:\n", top_10_lifespan)
+
+# reshape
+print("\n=== 7. RESHAPE & BROADCASTING ===")
+
+# Build grid mapping metrics (Simulating 3 days x 2 countries layout)
+grid_data = np.array([,  # Day 1 [Country A, Country B],  # Day 2
+    [800000, 750000]   # Day 3
+], dtype=np.float64)
+
+print(f"Original Matrix Grid Shape: {grid_data.shape}")
+
+# Broadcasting Operations (No Explicit Loops)
+day_totals = grid_data.sum(axis=1, keepdims=True)
+country_shares = grid_data / day_totals  # Share of each day's total views
+
+country_averages = grid_data.mean(axis=0, keepdims=True)
+relative_to_avg = grid_data / country_averages  # Relative to country's historical average
+
+print("Calculated Market Share Matrix:\n", country_shares)
+print("Calculated Index Relative to Country Average:\n", relative_to_avg)
+
+
+# MERGING
+
+print("\n=== 8. SUMMARY MATRIX CONFLATION MERGES ===")
+
+video_summary = df.groupby('video_id')['views'].max().reset_index(name='max_views')
+channel_summary = df.groupby('channel_title').agg(
+    total_views=('views', 'sum'),
+    unique_videos=('video_id', 'nunique')
+).reset_index()
+
+# Attach structural data across channel entities summaries
+final_summary = channel_summary.merge(df[['channel_title', 'video_id']].drop_duplicates(), on='channel_title', how='inner')
+print(final_summary.head())
